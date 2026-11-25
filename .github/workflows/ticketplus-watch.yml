@@ -1,0 +1,44 @@
+name: Ticket Plus Watch
+
+on:
+  schedule:
+    # 每 5 分鐘查一次票況、讀一次 Telegram 指令（GitHub 排程最短 5 分鐘，尖峰時常延遲，不保證準時）
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "填 1 不管有沒有釋票都推播一次，用來確認連線"
+        required: false
+        default: ""
+
+permissions:
+  contents: write  # 把已通知過的票區、Telegram 加入的監控清單存回 repo，避免重複推播
+
+concurrency:
+  group: ticketplus-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - run: python ticketplus_watch.py
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TEST: ${{ inputs.test }}
+      - name: 儲存已通知的票區與監控清單
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add data/ticketplus_state.json ticketplus_watch.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Update Ticket Plus watch $(TZ=Asia/Taipei date '+%F %H:%M')"
+          git pull --rebase origin ${{ github.ref_name }}
+          git push
