@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+from http.client import HTTPException
 import json
 import os
 import re
@@ -47,7 +48,7 @@ def request_json(url, data=None, headers=None):
             result = json.load(response)
     except HTTPError as exc:
         raise WatchError(f"HTTP {exc.code}") from None
-    except (URLError, TimeoutError, OSError, ValueError):
+    except (URLError, TimeoutError, OSError, ValueError, HTTPException):
         raise WatchError("網路錯誤或伺服器回傳無效資料") from None
     if not isinstance(result, dict):
         raise WatchError("伺服器回傳無效資料")
@@ -100,7 +101,7 @@ def available_tickets(event_id):
         if area and not ready(area_info[area["ticketAreaId"]], "ticketAreaLimit"):
             continue
         available[product_id] = " / ".join(
-            str(name) for name in (session.get("name"), session.get("date"),
+            str(name) for name in (session.get("name"), session.get("date"), session.get("time"),
                                    area.get("name") if area else None, product.get("name"))
             if name
         )
@@ -135,7 +136,7 @@ def notify(token, chat_id, url, tickets):
     length = 0
     for name in tickets.values():
         line = f"• {name}"
-        if length + len(line) + 1 > 3000:
+        if length + len(line) + 1 > 1500:
             break
         lines.append(line)
         length += len(line) + 1

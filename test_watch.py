@@ -1,4 +1,5 @@
 import unittest
+from http.client import IncompleteRead
 from unittest.mock import patch
 
 import watch
@@ -10,7 +11,7 @@ URL = f"https://ticketplus.com.tw/activity/{EVENT_ID}"
 
 def catalog():
     return {
-        "sessions": [{"sessionId": "s1", "name": "台北場", "date": "2027-01-01"},
+        "sessions": [{"sessionId": "s1", "name": "台北場", "date": "2027-01-01", "time": "19:00"},
                      {"sessionId": "s2", "name": "隱藏場", "hidden": True}],
         "ticketAreas": [{"ticketAreaId": "a1", "sessionId": "s1", "name": "A區"}],
         "products": [{"productId": "p1", "ticketAreaId": "a1", "name": "全票"},
@@ -41,9 +42,14 @@ class WatchTests(unittest.TestCase):
     @patch("watch.catalog", side_effect=lambda _: catalog())
     def test_stock_requires_product_and_area(self, _catalog, request):
         request.return_value = statuses()
-        self.assertEqual(watch.available_tickets(EVENT_ID), {"p1": "台北場 / 2027-01-01 / A區 / 全票"})
+        self.assertEqual(watch.available_tickets(EVENT_ID), {"p1": "台北場 / 2027-01-01 / 19:00 / A區 / 全票"})
         request.return_value = statuses(area_count=0, product_count=2)
-        self.assertEqual(watch.available_tickets(EVENT_ID), {"p2": "台北場 / 2027-01-01 / 站票"})
+        self.assertEqual(watch.available_tickets(EVENT_ID), {"p2": "台北場 / 2027-01-01 / 19:00 / 站票"})
+
+    @patch.object(watch.OPENER, "open", side_effect=IncompleteRead(b"partial"))
+    def test_interrupted_response_is_retryable(self, _open):
+        with self.assertRaises(watch.WatchError):
+            watch.request_json("https://example.com")
 
     @patch("watch.request_json")
     @patch("watch.catalog", side_effect=lambda _: catalog())
