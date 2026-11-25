@@ -215,10 +215,12 @@ def handle_commands(events, state):
 
 def main():
     if not TG_TOKEN or not TG_CHAT_ID:
-        # 沒設好就直接讓 workflow 失敗，GitHub 會寄信通知，而不是默默不推播
-        raise SystemExit("❌ 找不到 TELEGRAM_BOT_TOKEN 或 TELEGRAM_CHAT_ID，請到 GitHub Secrets 設定")
-    with open(CONFIG_PATH, encoding="utf-8") as f:
-        config = json.load(f)
+        raise SystemExit("❌ 找不到 TELEGRAM_BOT_TOKEN 或 TELEGRAM_CHAT_ID，請在 .env 設定（參考 .env.example）")
+    # 監控清單由 Telegram 指令維護，第一次執行還沒有檔案
+    config = {"events": []}
+    if os.path.exists(CONFIG_PATH):
+        with open(CONFIG_PATH, encoding="utf-8") as f:
+            config = json.load(f)
     events = config.setdefault("events", [])
     state = {}
     if os.path.exists(STATE_PATH):
@@ -241,7 +243,7 @@ def main():
 
     def save(ids):
         os.makedirs(os.path.dirname(STATE_PATH), exist_ok=True)
-        # 不記檢查時間：有票的票區與 Telegram 訊息都沒變時檔案就不變，workflow 不會每次都 commit
+        # 不記檢查時間，有票的票區與 Telegram 訊息都沒變時檔案內容就不變
         with open(STATE_PATH, "w", encoding="utf-8") as f:
             json.dump({**state, "available": sorted(ids)}, f, ensure_ascii=False, indent=1)
 
